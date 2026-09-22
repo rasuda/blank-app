@@ -1,8 +1,7 @@
-import asyncio
 import sys
 
-from mcp import ClientSession, StdioServerParameters, types
-from mcp.client.stdio import stdio_client
+import anyio
+from mcp import Client, StdioServerParameters
 
 
 async def main() -> None:
@@ -11,33 +10,26 @@ async def main() -> None:
         args=["server.py"],
     )
 
-    async with stdio_client(server) as (read, write):
-        async with ClientSession(read, write) as session:
-            await session.initialize()
+    async with Client(server) as client:
+        tools_result = await client.list_tools()
+        tool_names = {tool.name for tool in tools_result.tools}
 
-            tools_result = await session.list_tools()
-            tool_names = {tool.name for tool in tools_result.tools}
+        assert "somar" in tool_names
+        assert "informacoes_computador" in tool_names
 
-            assert "somar" in tool_names
-            assert "informacoes_computador" in tool_names
+        soma = await client.call_tool("somar", {"a": 10, "b": 20})
+        assert not soma.is_error
+        assert soma.structured_content == {"result": 30}
 
-            soma = await session.call_tool("somar", arguments={"a": 10, "b": 20})
-            assert not soma.isError
+        info = await client.call_tool("informacoes_computador", {})
+        assert not info.is_error
+        assert info.structured_content is not None
+        assert "sistema" in info.structured_content
 
-            soma_text = next(
-                block.text
-                for block in soma.content
-                if isinstance(block, types.TextContent)
-            )
-            assert "30" in soma_text
-
-            info = await session.call_tool("informacoes_computador", arguments={})
-            assert not info.isError
-
-            print("MCP smoke test OK")
-            print(f"Tools encontradas: {sorted(tool_names)}")
-            print(f"Resultado somar(10, 20): {soma_text}")
+        print("MCP smoke test OK")
+        print(f"Tools encontradas: {sorted(tool_names)}")
+        print(f"Resultado somar(10, 20): {soma.structured_content}")
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    anyio.run(main)
