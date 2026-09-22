@@ -1,8 +1,8 @@
 import platform
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server import MCPServer
 
-mcp = FastMCP("MCP Playground")
+mcp = MCPServer("MCP Playground")
 
 
 @mcp.tool()
