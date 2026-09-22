@@ -1,7 +1,8 @@
+import asyncio
 import sys
 
-import anyio
-from mcp import Client, StdioServerParameters
+from mcp import ClientSession, StdioServerParameters, types
+from mcp.client.stdio import stdio_client
 
 
 async def main() -> None:
@@ -10,25 +11,33 @@ async def main() -> None:
         args=["server.py"],
     )
 
-    async with Client(server) as client:
-        tools_result = await client.list_tools()
-        tool_names = {tool.name for tool in tools_result.tools}
+    async with stdio_client(server) as (read, write):
+        async with ClientSession(read, write) as session:
+            await session.initialize()
 
-        assert "somar" in tool_names
-        assert "informacoes_computador" in tool_names
+            tools_result = await session.list_tools()
+            tool_names = {tool.name for tool in tools_result.tools}
 
-        soma = await client.call_tool("somar", {"a": 10, "b": 20})
-        assert not soma.is_error
-        assert soma.structured_content == {"result": 30}
+            assert "somar" in tool_names
+            assert "informacoes_computador" in tool_names
 
-        info = await client.call_tool("informacoes_computador", {})
-        assert not info.is_error
-        assert info.structured_content is not None
+            soma = await session.call_tool("somar", arguments={"a": 10, "b": 20})
+            assert not soma.isError
 
-        print("MCP smoke test OK")
-        print(f"Tools encontradas: {sorted(tool_names)}")
-        print(f"Resultado somar(10, 20): {soma.structured_content}")
+            soma_text = next(
+                block.text
+                for block in soma.content
+                if isinstance(block, types.TextContent)
+            )
+            assert "30" in soma_text
+
+            info = await session.call_tool("informacoes_computador", arguments={})
+            assert not info.isError
+
+            print("MCP smoke test OK")
+            print(f"Tools encontradas: {sorted(tool_names)}")
+            print(f"Resultado somar(10, 20): {soma_text}")
 
 
 if __name__ == "__main__":
-    anyio.run(main)
+    asyncio.run(main())
